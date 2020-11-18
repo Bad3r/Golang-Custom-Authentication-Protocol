@@ -1,7 +1,11 @@
 FROM golang:1.15
 
+# Install beego & bee
+RUN go get github.com/astaxie/beego
+RUN go get github.com/beego/bee
+
 ENV APP_USER www-data
-ENV APP_HOME /go/src/client
+ENV APP_HOME /go/src/mathapp
 
 ARG USER_ID
 ARG GROUP_ID
@@ -15,15 +19,16 @@ RUN userdel -f $APP_USER &&\
           --from=33:33 ${USER_ID}:${GROUP_ID} \
         /home/$APP_USER
 
+# RUN mkdir -p $APP_HOME && chown -R ${USER_ID}:${GROUP_ID} $APP_HOME
 
 USER $APP_USER
 
 RUN mkdir -p $APP_HOME
 
-COPY . $APP_HOME
+COPY src $APP_HOME
 
 WORKDIR $APP_HOME
 
-RUN go build -o main main.go
+RUN go build -o $APP_HOME/main $APP_HOME/main.go
 
-EXPOSE 8080
+RUN ./$APP_HOME/main
