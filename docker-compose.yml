@@ -19,6 +19,37 @@ services:
   #   networks:
   #     - auth_network
 
+    oauth_provider:
+        build:
+            context: OAUTH_provider/
+            dockerfile: Dockerfile
+        # restart: always
+        hostname: 'oauth_provider'
+        # stop container from exiting(0) after running @COMMAND
+        environment:
+            - MYSQL_DATABASE='db'
+            # So you don't have to use root, but you can if you like
+            - MYSQL_USER='user'
+            - MYSQL_PASSWORD='password'
+            # Password for root access
+            - MYSQL_ROOT_PASSWORD='root'
+        ports:
+            - '80:80'
+        volumes:
+            - './OAUTH_provider/db.sql:/var/www/html/db.sql'
+            - './OAUTH_provider/config/nginx:/etc/nginx/conf.d'
+
+        networks:
+            - auth_network
+        command: >
+            bash -c " 
+            usermod -d /var/lib/mysql/ mysql
+            && service mysql start
+            && mysql -u root -proot < db.sql
+            && service php7.2-fpm start
+            && service nginx start
+            && git clone https://github.com/bshaffer/oauth2-server-php.git -b master
+            && tail -f /dev/null"
 
     auth_server:
         build:
@@ -33,6 +64,10 @@ services:
             - "3000:3000"
         networks:
             - auth_network
+        links: 
+            - oauth_provider
+        depends_on: 
+            - oauth_provider
         command: /go/src/auth_server/main
 
     client:

@@ -27,6 +27,54 @@ func sayhelloName(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello Bader!") // write data to response
 }
 
+func getAccessToken(w http.ResponseWriter, r *http.Request) {
+
+	r.ParseForm()
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	requestBody, err := json.Marshal(map[string]string{
+		"grant_type":    "client_credentials",
+		"username":      username,
+		"client_id":     username,
+		"client_secret": password,
+		"password":      password,
+	})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// initialize http client & set timeout
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+
+	request, err := http.NewRequest(http.MethodPost, "http://auth_server:3000/", bytes.NewBuffer(requestBody))
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	resp, err := client.Do(request)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println("auth -> client")
+
+	log.Println(string(body))
+
+}
+
 func login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("method:", r.Method) //get request method
 	if r.Method == "GET" {
@@ -38,42 +86,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("username:", r.Form["username"])
 		fmt.Println("password:", r.Form["password"])
 
-		username := r.FormValue("username")
-		password := r.FormValue("password")
+		getAccessToken(w, r)
 
-		requestBody, err := json.Marshal(map[string]string{
-			"grant_type": "client_credentials",
-		})
-
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		timeout := time.Duration(5 * time.Second)
-		client := http.Client{
-			Timeout: timeout,
-		}
-
-		request, err := http.NewRequest("POST", "http://0.0.0.0:3000/", bytes.NewBuffer(requestBody))
-		request.Header.Set("Content-type", "application/json")
-		request.SetBasicAuth(username, password)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		resp, err := client.Do(request)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		log.Println(string(body))
 	}
 }
 

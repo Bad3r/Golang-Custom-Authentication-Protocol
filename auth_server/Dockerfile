@@ -25,3 +25,5 @@ COPY . $APP_HOME
 WORKDIR $APP_HOME
 
 RUN go build -o main main.go
+
+EXPOSE 80
