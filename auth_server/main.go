@@ -91,14 +91,14 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 		DisableCompression: true,
 	}
 
-	timeout := time.Duration(500 * time.Second)
+	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
 		Timeout:   timeout,
 		Transport: tr,
 	}
 
-	// fmt.Println("#### dumping crafted request:")
-	// dumpRequest(request)
+	fmt.Println("#### dumping crafted request:")
+	dumpRequest(request)
 
 	resp, err := client.Do(request)
 	if err != nil {
