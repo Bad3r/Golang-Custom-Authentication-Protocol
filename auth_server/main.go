@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -52,11 +51,11 @@ func dumpRequest(st string, r *http.Request, body string) {
 
 	requestDump, err := httputil.DumpRequest(r, true)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	newST := st + "Request Header:\n" + string(requestDump) + body + "\n***Request Header***"
-	fmt.Println(newST)
+	log.Println(newST)
 
 }
 
@@ -64,10 +63,10 @@ func dumpResponse(st string, r *http.Response, body string) {
 
 	requestDump, err := httputil.DumpResponse(r, true)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	newST := st + "Respose Header:\n" + string(requestDump) + body + "\n***Respose Header***"
-	fmt.Println(newST)
+	log.Println(newST)
 
 }
 
@@ -197,7 +196,7 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 	}
 
-	fmt.Println(oauthResp.AccessToken)
+	log.Println(oauthResp.AccessToken)
 
 	// TODO: check if token is empty
 	stResp := "[3] Oauth_provider -> auth_server"
@@ -207,7 +206,7 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 	key := []byte("a very very very very secret key") // 32 bytes
 	encToken, err := encrypt(key, respBody)
 	tkn := encodeBase64(encToken)
-	fmt.Println("*** encrypted ***\n" + tkn + "\n*** encrypted ***")
+	log.Println("*** encrypted ***\n" + tkn + "\n*** encrypted ***")
 	// craft client success response
 	mapD := map[string]string{"auth": "success", "token": tkn}
 	mapB, _ := json.Marshal(mapD)
@@ -220,7 +219,7 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 	encResp, err := encrypt(hasher.Sum(nil), mapB)
 	b64Resp := encodeBase64(encResp)
 
-	fmt.Println("*** b64 string ***\n" + b64Resp + "\n" + reflect.TypeOf(b64Resp).String() + "\n*** b64 string ***")
+	log.Println("*** b64 string ***\n" + b64Resp + "\n" + reflect.TypeOf(b64Resp).String() + "\n*** b64 string ***")
 	w.Write([]byte(b64Resp))
 
 }

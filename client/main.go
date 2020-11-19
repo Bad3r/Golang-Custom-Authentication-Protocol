@@ -21,13 +21,13 @@ import (
 func sayhelloName(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //Parse url parameters passed, then parse the response packet for the POST body (request body)
 	// attention: If you do not call ParseForm method, the following data can not be obtained form
-	fmt.Println("Form: ", r.Form) // print information on server side.
-	fmt.Println("path: ", r.URL.Path)
-	fmt.Println("scheme: ", r.URL.Scheme)
-	fmt.Println(r.Form["url_long"])
+	log.Println("Form: ", r.Form) // print information on server side.
+	log.Println("path: ", r.URL.Path)
+	log.Println("scheme: ", r.URL.Scheme)
+	log.Println(r.Form["url_long"])
 	for k, v := range r.Form {
-		fmt.Println("key:", k)
-		fmt.Println("val:", strings.Join(v, ""))
+		log.Println("key:", k)
+		log.Println("val:", strings.Join(v, ""))
 	}
 	fmt.Fprintf(w, "Hello Bader!") // write data to response
 }
@@ -98,32 +98,23 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Println("auth -> client")
 	// get the SHA256 of user password
 	hasher := sha256.New()
 	hasher.Write([]byte(password))
 
 	b64Resp := string(body)
-	fmt.Println("*** client b64 string ***\n" + b64Resp + "\n*** client b64 string ***")
+	log.Println("*** client b64 string ***\n" + b64Resp + "\n*** client b64 string ***")
 	decodedBody := decodeBase64(b64Resp)
 	decryptedBody, err := decrypt(hasher.Sum(nil), decodedBody)
-	fmt.Println("*** decrypted body ***\n" + string(decryptedBody) + "\n*** decrypted body ***")
-
-	// log.Println(decryptedBody)
-
+	log.Println("*** decrypted body ***\n" + string(decryptedBody) + "\n*** decrypted body ***")
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("method:", r.Method) //get request method
+	log.Println("method:", r.Method) //get request method
 	if r.Method == "GET" {
 		t := template.Must(template.ParseFiles("templates/login.gtpl"))
 		t.Execute(w, nil)
 	} else {
-		r.ParseForm()
-		// logic part of log in
-		fmt.Println("username:", r.Form["username"])
-		fmt.Println("password:", r.Form["password"])
-
 		handleLogin(w, r)
 
 	}
@@ -152,7 +143,7 @@ func main() {
 	http.HandleFunc("/", sayhelloName) // setting router rule
 	http.HandleFunc("/login", login)
 
-	fmt.Println("Listening")
+	log.Println("Listening")
 	//Start the web server, set the port to listen to 8080. Without a path it assumes localhost
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
