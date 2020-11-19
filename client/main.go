@@ -27,7 +27,7 @@ func sayhelloName(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello Bader!") // write data to response
 }
 
-func getAccessToken(w http.ResponseWriter, r *http.Request) {
+func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
 	username := r.FormValue("username")
@@ -86,7 +86,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("username:", r.Form["username"])
 		fmt.Println("password:", r.Form["password"])
 
-		getAccessToken(w, r)
+		handleLogin(w, r)
 
 	}
 }
