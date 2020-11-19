@@ -1,14 +1,23 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +41,13 @@ type clientOauthRequest struct {
 	ClientSecret string `json:"client_secret"`
 }
 
+type oauthTokenResp struct {
+	AccessToken string `json:"access_token"`
+	expiresIn   int    `json:"client_secret"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+}
+
 func dumpRequest(st string, r *http.Request, body string) {
 
 	requestDump, err := httputil.DumpRequest(r, true)
@@ -39,7 +55,7 @@ func dumpRequest(st string, r *http.Request, body string) {
 		fmt.Println(err)
 	}
 
-	newST := st + "Request Header:\n" + string(requestDump) + body
+	newST := st + "Request Header:\n" + string(requestDump) + body + "\n***Request Header***"
 	fmt.Println(newST)
 
 }
@@ -50,7 +66,7 @@ func dumpResponse(st string, r *http.Response, body string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	newST := st + "Respose Header:\n" + string(requestDump) + body
+	newST := st + "Respose Header:\n" + string(requestDump) + body + "\n***Respose Header***"
 	fmt.Println(newST)
 
 }
@@ -63,6 +79,48 @@ func getCreds(body []byte) (*clientOauthRequest, error) {
 		log.Fatalln(err)
 	}
 	return s, err
+}
+
+func parseOauthToken(body []byte) (*oauthTokenResp, error) {
+
+	var s = new(oauthTokenResp)
+	err := json.Unmarshal(body, &s)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return s, err
+}
+
+func encodeBase64(b []byte) string {
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func encrypt(key, text []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	b := base64.StdEncoding.EncodeToString(text)
+	ciphertext := make([]byte, aes.BlockSize+len(b))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
+	cfb := cipher.NewCFBEncrypter(block, iv)
+	cfb.XORKeyStream(ciphertext[aes.BlockSize:], []byte(b))
+	return ciphertext, nil
+}
+func createHash(key string, data []byte) string {
+	// Create a new HMAC by defining the hash type and the key (as byte array)
+	h := hmac.New(sha256.New, []byte(key))
+	// Write Data to it
+	h.Write([]byte(data))
+
+	// Get result and encode as hexadecimal string
+	sha := hex.EncodeToString(h.Sum(nil))
+
+	return sha
+
 }
 
 func getAccessToken(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +151,7 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	request.Header.Set("Content-type", "application/x-www-form-urlencoded")
 	request.Header.Set("Content-Length", strconv.Itoa(len(data.Encode())))
+	request.SetBasicAuth(s.ClientID, s.ClientSecret)
 
 	if err != nil {
 		log.Fatalln(err)
@@ -112,19 +171,57 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 		Transport: tr,
 	}
 
+	//  handle response from Oauth_provider
 	resp, err := client.Do(request)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 400 {
+		mapD := map[string]string{"auth": "fail", "token": ""}
+		mapB, _ := json.Marshal(mapD)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(mapB)
+		return
+	}
+
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Println(string(body))
 
-	// fmt.Println("#### dumping Oauth response:")
-	// dumpResponse(resp)
+	oauthResp, err := parseOauthToken([]byte(respBody))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	fmt.Println(oauthResp.AccessToken)
+
+	// TODO: check if token is empty
+	stResp := "[3] Oauth_provider -> auth_server"
+	dumpResponse(stResp, resp, string(respBody))
+
+	// key known only to auth_server and web_application
+	key := []byte("a very very very very secret key") // 32 bytes
+	encToken, err := encrypt(key, respBody)
+	tkn := encodeBase64(encToken)
+	fmt.Println("*** encrypted ***\n" + tkn + "\n*** encrypted ***")
+	// craft client success response
+	mapD := map[string]string{"auth": "success", "token": tkn}
+	mapB, _ := json.Marshal(mapD)
+	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+
+	// get the SHA256 of user password
+	hasher := sha256.New()
+	hasher.Write([]byte(s.ClientSecret))
+	// encrypt the response with the hash of the user password
+	encResp, err := encrypt(hasher.Sum(nil), mapB)
+	b64Resp := encodeBase64(encResp)
+
+	fmt.Println("*** b64 string ***\n" + b64Resp + "\n" + reflect.TypeOf(b64Resp).String() + "\n*** b64 string ***")
+	w.Write([]byte(b64Resp))
 
 }
 

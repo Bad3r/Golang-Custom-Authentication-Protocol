@@ -2,7 +2,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -27,6 +32,33 @@ func sayhelloName(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello Bader!") // write data to response
 }
 
+func decodeBase64(s string) []byte {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+func decrypt(key, text []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(text) < aes.BlockSize {
+		return nil, errors.New("ciphertext too short")
+	}
+	iv := text[:aes.BlockSize]
+	text = text[aes.BlockSize:]
+	cfb := cipher.NewCFBDecrypter(block, iv)
+	cfb.XORKeyStream(text, text)
+	data, err := base64.StdEncoding.DecodeString(string(text))
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
@@ -34,11 +66,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 
 	requestBody, err := json.Marshal(map[string]string{
-		"grant_type":    "client_credentials",
-		"username":      username,
 		"client_id":     username,
 		"client_secret": password,
-		"password":      password,
 	})
 
 	if err != nil {
@@ -70,8 +99,17 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 	}
 	fmt.Println("auth -> client")
+	// get the SHA256 of user password
+	hasher := sha256.New()
+	hasher.Write([]byte(password))
 
-	log.Println(string(body))
+	b64Resp := string(body)
+	fmt.Println("*** client b64 string ***\n" + b64Resp + "\n*** client b64 string ***")
+	decodedBody := decodeBase64(b64Resp)
+	decryptedBody, err := decrypt(hasher.Sum(nil), decodedBody)
+	fmt.Println("*** decrypted body ***\n" + string(decryptedBody) + "\n*** decrypted body ***")
+
+	// log.Println(decryptedBody)
 
 }
 
