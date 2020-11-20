@@ -1,6 +1,6 @@
 <html>
 	<head>
-	<title></title>
+	<title>Log in</title>
 	</head>
 	<body>
 		<form action="/login" method="post">

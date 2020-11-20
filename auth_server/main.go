@@ -150,6 +150,7 @@ func getAccessToken(w http.ResponseWriter, r *http.Request) {
 	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	request.Header.Set("Content-type", "application/x-www-form-urlencoded")
 	request.Header.Set("Content-Length", strconv.Itoa(len(data.Encode())))
+	request.Header.Set("connection", "close")
 	request.SetBasicAuth(s.ClientID, s.ClientSecret)
 
 	if err != nil {

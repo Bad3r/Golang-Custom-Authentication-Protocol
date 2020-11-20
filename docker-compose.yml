@@ -1,30 +1,13 @@
 version: "3"
 
 services:
-  # mathapp:
-  #   build:
-  #     context: MathApp/
-  #     dockerfile: Dockerfile
-  #     args:
-  #       USER_ID: 1000
-  #       GROUP_ID: 1000
-
-  #   working_dir: /go/src/mathapp
-
-  #   # command: bee run
-
-  #   ports:
-  #     - 8010:8010
-
-  #   networks:
-  #     - auth_network
 
     oauth_provider:
         build:
             context: OAUTH_provider/
             dockerfile: Dockerfile
         # restart: always
-        hostname: 'oauth_provider'
+        hostname: 'oauth_provider.local'
         # stop container from exiting(0) after running @COMMAND
         environment:
             - MYSQL_DATABASE='db'
@@ -36,8 +19,9 @@ services:
         ports:
             - '80:80'
         volumes:
-            - './OAUTH_provider/db.sql:/var/www/html/db.sql'
-            - './OAUTH_provider/config/nginx:/etc/nginx/conf.d'
+            # - './OAUTH_provider/db.sql:/var/www/html/db.sql'
+            - './OAUTH_provider/nginx/nginx.conf:/etc/nginx/conf.d/nginx.conf'
+            - './OAUTH_provider/nginx/fastcgi_params:/etc/nginx/fastcgi_params'
 
         networks:
             - auth_network
@@ -46,10 +30,14 @@ services:
             usermod -d /var/lib/mysql/ mysql
             && service mysql start
             && mysql -u root -proot < db.sql
+            && chown -R www-data:www-data /var/www/html/
+            && chmod -R 770 /var/www/html/
+            && chmod 600 /etc/nginx/ssl
             && service php7.2-fpm start
             && service nginx start
             && git clone https://github.com/bshaffer/oauth2-server-php.git -b master
             && tail -f /dev/null"
+
 
     auth_server:
         build:
@@ -59,7 +47,7 @@ services:
                 USER_ID: 1000
                 GROUP_ID: 1000
         restart: always
-        hostname: 'auth_server'
+        hostname: 'auth_server.local'
         ports:
             - "3000:3000"
         networks:
@@ -69,6 +57,30 @@ services:
         depends_on: 
             - oauth_provider
         command: /go/src/auth_server/main
+
+    web_application:
+        build:
+            context: web_application/
+            dockerfile: Dockerfile
+            args:
+                USER_ID: 1000
+                GROUP_ID: 1000
+        restart: always
+        hostname: 'web_application.local'
+        ports:
+            - "9000:9000"
+        networks:
+            - auth_network
+        links: 
+            - oauth_provider
+            - client
+            - auth_server
+        depends_on: 
+            - oauth_provider
+            - client
+            - auth_server
+        command: /go/src/web_application/main
+
 
     client:
         build:
@@ -80,7 +92,7 @@ services:
         restart: always
         ports:
             - "8080:8080"
-        hostname: 'client'
+        hostname: 'client.local'
         links:
             - auth_server
         depends_on:

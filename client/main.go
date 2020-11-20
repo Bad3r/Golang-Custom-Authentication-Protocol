@@ -18,16 +18,21 @@ import (
 	"time"
 )
 
+type authToken struct {
+	Auth  string `json:"auth"`
+	Token string `json:"token"`
+}
+
 func sayhelloName(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //Parse url parameters passed, then parse the response packet for the POST body (request body)
 	// attention: If you do not call ParseForm method, the following data can not be obtained form
-	log.Println("Form: ", r.Form) // print information on server side.
-	log.Println("path: ", r.URL.Path)
-	log.Println("scheme: ", r.URL.Scheme)
-	log.Println(r.Form["url_long"])
+	fmt.Println("Form: ", r.Form) // print information on server side.
+	fmt.Println("path: ", r.URL.Path)
+	fmt.Println("scheme: ", r.URL.Scheme)
+	fmt.Println(r.Form["url_long"])
 	for k, v := range r.Form {
-		log.Println("key:", k)
-		log.Println("val:", strings.Join(v, ""))
+		fmt.Println("key:", k)
+		fmt.Println("val:", strings.Join(v, ""))
 	}
 	fmt.Fprintf(w, "Hello Bader!") // write data to response
 }
@@ -59,6 +64,15 @@ func decrypt(key, text []byte) ([]byte, error) {
 	return data, nil
 }
 
+func parseToken(body string) (*authToken, error) {
+
+	var s = new(authToken)
+	err := json.Unmarshal([]byte(body), &s)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return s, err
+}
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
@@ -107,10 +121,36 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	decodedBody := decodeBase64(b64Resp)
 	decryptedBody, err := decrypt(hasher.Sum(nil), decodedBody)
 	log.Println("*** decrypted body ***\n" + string(decryptedBody) + "\n*** decrypted body ***")
+	tokenStr := string(decryptedBody)
+
+	token, err := parseToken(tokenStr)
+
+	mapD := map[string]string{"auth": token.Auth, "token": token.Token}
+	mapB, _ := json.Marshal(mapD)
+	log.Println("new json\n" + string(mapB) + "*** new json ***")
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// send request to web app with encrypted token
+
+	appReq, err := http.NewRequest(http.MethodPost, "http://web_application:9000/", bytes.NewBuffer(mapB))
+	appReq.Header.Set("Content-type", "application/json")
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	r.Body = ioutil.NopCloser(strings.NewReader(tokenStr))
+	r.ContentLength = int64(len(tokenStr))
+
+	http.Redirect(w, r, "http://web_application:9000/", 307)
+
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	log.Println("method:", r.Method) //get request method
+	fmt.Println("method:", r.Method) //get request method
 	if r.Method == "GET" {
 		t := template.Must(template.ParseFiles("templates/login.gtpl"))
 		t.Execute(w, nil)
@@ -143,7 +183,7 @@ func main() {
 	http.HandleFunc("/", sayhelloName) // setting router rule
 	http.HandleFunc("/login", login)
 
-	log.Println("Listening")
+	fmt.Println("Listening")
 	//Start the web server, set the port to listen to 8080. Without a path it assumes localhost
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
